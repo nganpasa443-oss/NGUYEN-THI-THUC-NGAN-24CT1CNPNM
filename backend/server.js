@@ -28,8 +28,8 @@ if (!fs.existsSync(uploadsDir)) {
 // Serve thư mục uploads tĩnh
 app.use('/notes_api/uploads', express.static(uploadsDir));
 
-// Kết nối MySQL
-const db = mysql.createConnection({
+// Kết nối MySQL bằng Pool cho Serverless
+const db = mysql.createPool({
   host: process.env.DB_HOST,
   port: process.env.DB_PORT || 3306,
   user: process.env.DB_USER,
@@ -37,12 +37,20 @@ const db = mysql.createConnection({
   database: process.env.DB_NAME,
   ssl: {
     rejectUnauthorized: false
-  }
+  },
+  waitForConnections: true,
+  connectionLimit: 10,
+  queueLimit: 0
 });
 
-db.connect(err => {
-  if (err) throw err;
-  console.log('✅ MySQL connected!');
+// Test connection
+db.getConnection((err, connection) => {
+  if (err) {
+    console.error('Lỗi kết nối MySQL Pool:', err);
+  } else {
+    console.log('✅ MySQL Pool connected!');
+    connection.release();
+  }
 });
 
 // Nodemailer setup
