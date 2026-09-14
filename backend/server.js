@@ -1,4 +1,5 @@
 // server.js
+require('dotenv').config();
 const express = require('express');
 const mysql = require('mysql2');
 const bodyParser = require('body-parser');
@@ -7,6 +8,13 @@ const nodemailer = require('nodemailer');
 const crypto = require('crypto');
 const fs = require('fs');
 const path = require('path');
+const cloudinary = require('cloudinary').v2;
+
+cloudinary.config({ 
+  cloud_name: process.env.CLOUDINARY_CLOUD_NAME, 
+  api_key: process.env.CLOUDINARY_API_KEY, 
+  api_secret: process.env.CLOUDINARY_API_SECRET 
+});
 
 const app = express();
 app.use(cors());
@@ -22,10 +30,14 @@ app.use('/notes_api/uploads', express.static(uploadsDir));
 
 // Kết nối MySQL
 const db = mysql.createConnection({
-  host: 'localhost',
-  user: 'root',
-  password: '',  
-  database: 'notes_app'
+  host: process.env.DB_HOST,
+  port: process.env.DB_PORT || 3306,
+  user: process.env.DB_USER,
+  password: process.env.DB_PASSWORD,  
+  database: process.env.DB_NAME,
+  ssl: {
+    rejectUnauthorized: false
+  }
 });
 
 db.connect(err => {
@@ -39,8 +51,8 @@ const transporter = nodemailer.createTransport({
   port: 465,
   secure: true,
   auth: {
-    user: 'youremail@gmail.com',
-    pass: 'app-password',
+    user: process.env.EMAIL_USER,
+    pass: process.env.EMAIL_PASS,
   }
 });
 
@@ -99,7 +111,7 @@ app.post('/notes_api/auth/login.php', (req, res) => {
 });
 
 // 2. Đăng ký (Register)
-app.post('/notes_api/auth/register.php', (req, res) => {
+app.post('/notes_api/auth/register.php', async (req, res) => {
   const { name, email, password, profileImageBase64 } = req.body;
   if (!name || !email || !password) {
     return res.status(400).json({ message: 'Vui lòng nhập đầy đủ thông tin!' });
@@ -110,12 +122,14 @@ app.post('/notes_api/auth/register.php', (req, res) => {
   let profile_image_url = null;
   if (profileImageBase64) {
     try {
-      const filename = `profile_${Date.now()}.jpg`;
-      const filepath = path.join(uploadsDir, filename);
-      fs.writeFileSync(filepath, profileImageBase64, 'base64');
-      profile_image_url = `uploads/${filename}`;
+      // Upload lên Cloudinary
+      const base64Image = `data:image/jpeg;base64,${profileImageBase64}`;
+      const uploadResponse = await cloudinary.uploader.upload(base64Image, {
+        folder: 'notes_app_profiles'
+      });
+      profile_image_url = uploadResponse.secure_url;
     } catch (err) {
-      console.error('Lỗi lưu ảnh:', err);
+      console.error('Lỗi lưu ảnh lên Cloudinary:', err);
     }
   }
 
@@ -222,7 +236,7 @@ app.get('/notes_api/users.php', (req, res) => {
   db.query(query, (err, results) => {
     if (err) {
       console.error(err);
-      return res.status(500).json({ status: 'error', message: 'Lỗi tải danh sách user!' });
+      return res.status(500).json({ status: 'error', message: 'Lỗi tải danh sách user! Chi tiết: ' + err.message });
     }
     res.json({
       status: 'success',
@@ -314,7 +328,7 @@ app.post(['/api/send-reset-code', '/notes_api/api/send-reset-code'], (req, res) 
     console.log(`[RESET CODE] Code cho ${email}: ${code}`);
 
     const mailOptions = {
-      from: 'youremail@gmail.com',
+      from: process.env.EMAIL_USER,
       to: email.trim(),
       subject: 'Mã đặt lại mật khẩu - Notes App',
       text: `Mã xác nhận đặt lại mật khẩu của bạn là: ${code}. Mã có hiệu lực trong 5 phút.`
@@ -366,4 +380,8 @@ app.post(['/api/reset-password', '/notes_api/api/reset-password'], (req, res) =>
 });
 
 // Khởi động Express Server
-app.listen(3000, () => console.log('🚀 Server Node.js đang chạy trên http://localhost:3000'));
+const PORT = process.env.PORT || 3000;
+app.listen(PORT, () => console.log(`🚀 Server Node.js đang chạy trên port ${PORT}`));
+
+// Export app cho Vercel Serverless
+module.exports = app;
