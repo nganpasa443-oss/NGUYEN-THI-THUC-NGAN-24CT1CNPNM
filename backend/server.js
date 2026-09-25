@@ -175,13 +175,13 @@ app.post('/notes_api/auth/register.php', async (req, res) => {
 
 // 3. Tạo ghi chú mới (Create note)
 app.post('/notes_api/notes/create_note.php', (req, res) => {
-  const { user_id, title, content } = req.body;
+  const { user_id, title, content, reminder_time } = req.body;
   if (!user_id || !title) {
     return res.status(400).json({ status: false, message: 'Thiếu thông tin user_id hoặc title!' });
   }
 
-  const query = 'INSERT INTO notes (user_id, title, content, created_at) VALUES (?, ?, ?, NOW())';
-  db.query(query, [user_id, title.trim(), content ? content.trim() : ''], (err, result) => {
+  const query = 'INSERT INTO notes (user_id, title, content, reminder_time, created_at) VALUES (?, ?, ?, ?, NOW())';
+  db.query(query, [user_id, title.trim(), content ? content.trim() : '', reminder_time || null], (err, result) => {
     if (err) {
       console.error(err);
       return res.status(500).json({ status: false, message: 'Lỗi lưu ghi chú!' });
@@ -207,6 +207,7 @@ app.get('/notes_api/notes/:userId', (req, res) => {
       user_id: row.user_id,
       title: row.title,
       content: row.content,
+      reminderTime: row.reminder_time,
       createdAt: row.created_at
     }));
     res.json(notes);
@@ -216,8 +217,8 @@ app.get('/notes_api/notes/:userId', (req, res) => {
 // Cập nhật ghi chú
 app.put('/notes_api/notes/:id', (req, res) => {
   const { id } = req.params;
-  const { title, content } = req.body;
-  db.query('UPDATE notes SET title = ?, content = ? WHERE id = ?', [title, content, id], (err) => {
+  const { title, content, reminder_time } = req.body;
+  db.query('UPDATE notes SET title = ?, content = ?, reminder_time = ? WHERE id = ?', [title, content, reminder_time || null, id], (err) => {
     if (err) {
       console.error(err);
       return res.status(500).json({ message: 'Lỗi server' });
