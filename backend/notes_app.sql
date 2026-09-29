@@ -1,8 +1,8 @@
 -- notes_app.sql - Database Schema cho Notes App
 -- Tạo database
-DROP DATABASE IF EXISTS notes_app;
-CREATE DATABASE IF NOT EXISTS notes_app CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
-USE notes_app;
+-- DROP DATABASE IF EXISTS defaultdb;
+-- CREATE DATABASE IF NOT EXISTS defaultdb CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+USE defaultdb;
 
 -- Xóa tables cũ nếu có
 DROP TABLE IF EXISTS notes;
@@ -36,6 +36,7 @@ CREATE TABLE notes (
     user_id INT NOT NULL,
     title VARCHAR(200) NOT NULL,
     content TEXT,
+    reminder_time DATETIME NULL,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
     FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
