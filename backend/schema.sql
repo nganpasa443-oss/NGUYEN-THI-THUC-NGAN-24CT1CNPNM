@@ -111,6 +111,7 @@ LIMIT 10;
 -- =====================================================
 
 -- Procedure: Tạo user mới
+DROP PROCEDURE IF EXISTS create_user;
 DELIMITER //
 CREATE PROCEDURE create_user(
     IN p_name VARCHAR(100),
@@ -127,6 +128,7 @@ END //
 DELIMITER ;
 
 -- Procedure: Tạo note mới
+DROP PROCEDURE IF EXISTS create_note;
 DELIMITER //
 CREATE PROCEDURE create_note(
     IN p_user_id INT,
@@ -142,6 +144,7 @@ END //
 DELIMITER ;
 
 -- Procedure: Lấy notes của user
+DROP PROCEDURE IF EXISTS get_user_notes;
 DELIMITER //
 CREATE PROCEDURE get_user_notes(IN p_user_id INT)
 BEGIN
