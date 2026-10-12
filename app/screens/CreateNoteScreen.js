@@ -1,5 +1,5 @@
 // screens/CreateNoteScreen.js
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import {
   Alert,
   ScrollView,
@@ -7,24 +7,58 @@ import {
   Text,
   TextInput,
   TouchableOpacity,
-  View
+  View,
+  Platform
 } from 'react-native';
 
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
+import DateTimePicker from '@react-native-community/datetimepicker';
+import Constants, { ExecutionEnvironment } from 'expo-constants';
 
 import { API_BASE_URL } from '../../config/api';
+
+const isExpoGo = Constants.executionEnvironment === ExecutionEnvironment.StoreClient;
 
 export default function CreateNoteScreen({ userId, onBack }) {
   const [title, setTitle] = useState('');
   const [content, setContent] = useState('');
+  
+  // States cho Nhắc nhở
+  const [reminderTime, setReminderTime] = useState(null);
+  const [showPicker, setShowPicker] = useState(false);
 
   const API_URL = `${API_BASE_URL}/notes/create_note.php`;
 
-  // Log kiểm tra userId
-  useEffect(() => {
-    console.log("📌 USER ID NHẬN VÀO:", userId);
-  }, [userId]);
+  const onChangeDate = (event, selectedDate) => {
+    setShowPicker(Platform.OS === 'ios');
+    if (selectedDate) {
+      if (selectedDate < new Date()) {
+        Alert.alert("Lỗi", "Vui lòng chọn thời gian trong tương lai!");
+        return;
+      }
+      setReminderTime(selectedDate);
+    }
+  };
+
+  const scheduleLocalNotification = async (noteTitle, date) => {
+    if (isExpoGo) {
+      console.log("Expo Go không hỗ trợ Push Notifications. Sẽ chạy bình thường trên APK.");
+      return;
+    }
+    try {
+      const Notifications = require('expo-notifications');
+      await Notifications.scheduleNotificationAsync({
+        content: {
+          title: "⏰ Nhắc nhở Ghi chú",
+          body: noteTitle,
+        },
+        trigger: { date: date },
+      });
+    } catch (error) {
+      console.log("Lỗi hẹn giờ nhắc nhở:", error);
+    }
+  };
 
   // Gửi API tạo note
   const handleSave = async () => {
@@ -33,10 +67,8 @@ export default function CreateNoteScreen({ userId, onBack }) {
       return;
     }
 
-    // Chặn gửi API khi userId không hợp lệ
     if (!userId) {
-      Alert.alert("Lỗi", "Không xác định được User ID! Không thể lưu ghi chú.");
-      console.log("❌ userId bị thiếu:", userId);
+      Alert.alert("Lỗi", "Không xác định được User ID!");
       return;
     }
 
@@ -57,7 +89,8 @@ export default function CreateNoteScreen({ userId, onBack }) {
                 body: JSON.stringify({
                   user_id: userId,
                   title: title.trim(),
-                  content: content.trim()
+                  content: content.trim(),
+                  reminder_time: reminderTime ? reminderTime.toISOString() : null
                 })
               });
 
@@ -73,11 +106,14 @@ export default function CreateNoteScreen({ userId, onBack }) {
               }
 
               if (data.status === true) {
+                if (reminderTime) {
+                  await scheduleLocalNotification(title.trim(), reminderTime);
+                }
                 Alert.alert("Thành công", data.message || "Ghi chú đã được lưu!");
                 onBack();
-                } else {
+              } else {
                 Alert.alert("Lỗi", data.message || "Không thể lưu ghi chú.");
-                }
+              }
 
             } catch (error) {
               console.log("Lỗi tạo note:", error);
@@ -90,7 +126,7 @@ export default function CreateNoteScreen({ userId, onBack }) {
   };
 
   const handleBack = () => {
-    if (title.trim() || content.trim()) {
+    if (title.trim() || content.trim() || reminderTime) {
       Alert.alert(
         "Quay lại",
         "Bạn có thay đổi chưa lưu. Thoát?",
@@ -142,6 +178,45 @@ export default function CreateNoteScreen({ userId, onBack }) {
         />
       </ThemedView>
 
+      <ThemedView style={styles.reminderContainer}>
+        <ThemedText style={styles.label}>⏰ Báo thức / Nhắc nhở:</ThemedText>
+        <View style={styles.reminderRow}>
+          <TouchableOpacity 
+            style={styles.reminderButton} 
+            onPress={() => setShowPicker(true)}
+          >
+            <Text style={styles.reminderButtonText}>
+              {reminderTime ? 'Đổi giờ nhắc nhở' : 'Chọn giờ nhắc nhở'}
+            </Text>
+          </TouchableOpacity>
+          
+          {reminderTime && (
+            <TouchableOpacity 
+              style={styles.clearReminderButton} 
+              onPress={() => setReminderTime(null)}
+            >
+              <Text style={styles.clearReminderText}>Xóa</Text>
+            </TouchableOpacity>
+          )}
+        </View>
+        
+        {reminderTime && (
+          <Text style={styles.reminderSelectedText}>
+            Đã đặt: {reminderTime.toLocaleString('vi-VN')}
+          </Text>
+        )}
+
+        {showPicker && (
+          <DateTimePicker
+            value={reminderTime || new Date()}
+            mode="datetime"
+            display="default"
+            onChange={onChangeDate}
+            minimumDate={new Date()}
+          />
+        )}
+      </ThemedView>
+
       <ThemedView style={styles.helpContainer}>
         <ThemedText style={styles.helpText}>
           💡 Bạn có thể viết bất cứ điều gì!
@@ -156,6 +231,47 @@ export default function CreateNoteScreen({ userId, onBack }) {
 }
 
 const styles = StyleSheet.create({
+  reminderContainer: {
+    marginBottom: 20,
+    backgroundColor: '#1c1c1e',
+    padding: 15,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: '#3a3a3c',
+  },
+  reminderRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+  },
+  reminderButton: {
+    backgroundColor: '#3a3a3c',
+    paddingVertical: 10,
+    paddingHorizontal: 15,
+    borderRadius: 8,
+    flex: 1,
+    alignItems: 'center',
+  },
+  reminderButtonText: {
+    color: '#4da6ff',
+    fontWeight: '600',
+  },
+  clearReminderButton: {
+    backgroundColor: '#3a1414',
+    paddingVertical: 10,
+    paddingHorizontal: 15,
+    borderRadius: 8,
+  },
+  clearReminderText: {
+    color: '#ff6b6b',
+    fontWeight: '600',
+  },
+  reminderSelectedText: {
+    color: '#28a745',
+    marginTop: 10,
+    fontSize: 14,
+    fontWeight: '500',
+  },
   backButtonContainer: {
     marginBottom: 6,
   },

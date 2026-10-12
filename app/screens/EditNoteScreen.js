@@ -8,22 +8,123 @@ import {
   TextInput,
   TouchableOpacity,
   View,
+  Platform
 } from 'react-native';
 
-// import ParallaxScrollView from '@/components/parallax-scroll-view';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
+import DateTimePicker from '@react-native-community/datetimepicker';
+import * as Print from 'expo-print';
+import Constants, { ExecutionEnvironment } from 'expo-constants';
+
+const isExpoGo = Constants.executionEnvironment === ExecutionEnvironment.StoreClient;
 
 export default function EditNoteScreen({ note, onSave, onBack }) {
   const [title, setTitle] = useState(note?.title || '');
   const [content, setContent] = useState(note?.content || '');
   
+  // Xử lý chuỗi thời gian từ DB nếu có
+  const initialReminder = note?.reminderTime ? new Date(note.reminderTime) : null;
+  const [reminderTime, setReminderTime] = useState(initialReminder);
+  const [showPicker, setShowPicker] = useState(false);
+  
   const originalTitle = note?.title || '';
   const originalContent = note?.content || '';
+  const originalReminder = initialReminder;
 
-  const hasChanges = title !== originalTitle || content !== originalContent;
+  // Cờ kiểm tra thay đổi
+  const hasChanges = title !== originalTitle || content !== originalContent || 
+                     (reminderTime?.getTime() !== originalReminder?.getTime());
 
-  const handleSave = () => {
+  const onChangeDate = (event, selectedDate) => {
+    setShowPicker(Platform.OS === 'ios');
+    if (selectedDate) {
+      if (selectedDate < new Date()) {
+        Alert.alert("Lỗi", "Vui lòng chọn thời gian trong tương lai!");
+        return;
+      }
+      setReminderTime(selectedDate);
+    }
+  };
+
+  const scheduleLocalNotification = async (noteTitle, date) => {
+    if (isExpoGo) {
+      console.log("Expo Go không hỗ trợ Push Notifications. Sẽ chạy bình thường trên APK.");
+      return;
+    }
+    try {
+      const Notifications = require('expo-notifications');
+      await Notifications.scheduleNotificationAsync({
+        content: {
+          title: "⏰ Nhắc nhở Ghi chú",
+          body: noteTitle,
+        },
+        trigger: { date: date },
+      });
+    } catch (error) {
+      console.log("Lỗi hẹn giờ nhắc nhở:", error);
+    }
+  };
+
+  const exportToPDF = async () => {
+    const html = `
+      <!DOCTYPE html>
+      <html>
+        <head>
+          <meta charset="utf-8">
+          <meta name="viewport" content="width=device-width, initial-scale=1.0">
+          <style>
+            body { 
+              font-family: -apple-system, Roboto, 'Helvetica Neue', Arial, sans-serif; 
+              padding: 40px 30px; 
+              color: #2c3e50; 
+              line-height: 1.6; 
+            }
+            .header {
+              border-bottom: 2px solid #007AFF;
+              padding-bottom: 12px;
+              margin-bottom: 20px;
+            }
+            h1 { 
+              color: #007AFF; 
+              font-size: 26px; 
+              margin: 0;
+            }
+            .content { 
+              font-size: 16px; 
+              white-space: pre-wrap; 
+              word-break: break-word;
+              line-height: 1.8;
+            }
+            .footer { 
+              margin-top: 50px; 
+              font-size: 12px; 
+              color: #95a5a6; 
+              border-top: 1px solid #eee; 
+              padding-top: 15px; 
+              text-align: center; 
+            }
+          </style>
+        </head>
+        <body>
+          <div class="header">
+            <h1>${title || 'Ghi chú không có tiêu đề'}</h1>
+          </div>
+          <div class="content">${content || ''}</div>
+          <div class="footer">Xuất từ ứng dụng Notes App · ${new Date().toLocaleDateString('vi-VN')}</div>
+        </body>
+      </html>
+    `;
+
+    try {
+      await Print.printAsync({ html });
+    } catch (error) {
+      Alert.alert('Lỗi', 'Không thể xuất PDF: ' + (error.message || ''));
+      console.error(error);
+    }
+  };
+
+  const handleSave = async () => {
     if (!title.trim()) {
       Alert.alert('Lỗi', 'Vui lòng nhập tiêu đề ghi chú!');
       return;
@@ -35,7 +136,8 @@ export default function EditNoteScreen({ note, onSave, onBack }) {
     
     const noteData = {
       title: title.trim(),
-      content: content.trim()
+      content: content.trim(),
+      reminder_time: reminderTime ? reminderTime.toISOString() : null
     };
     
     Alert.alert(
@@ -45,7 +147,10 @@ export default function EditNoteScreen({ note, onSave, onBack }) {
         { text: 'Hủy', style: 'cancel' },
         { 
           text: 'Lưu', 
-          onPress: () => {
+          onPress: async () => {
+            if (reminderTime && reminderTime.getTime() !== originalReminder?.getTime()) {
+              await scheduleLocalNotification(noteData.title, reminderTime);
+            }
             onSave(noteData);
             Alert.alert('Thành công', 'Ghi chú đã được cập nhật!');
           }
@@ -148,6 +253,49 @@ export default function EditNoteScreen({ note, onSave, onBack }) {
         />
       </ThemedView>
 
+      <ThemedView style={styles.reminderContainer}>
+        <ThemedText style={styles.label}>⏰ Báo thức / Nhắc nhở:</ThemedText>
+        <View style={styles.reminderRow}>
+          <TouchableOpacity 
+            style={styles.reminderButton} 
+            onPress={() => setShowPicker(true)}
+          >
+            <Text style={styles.reminderButtonText}>
+              {reminderTime ? 'Đổi giờ nhắc nhở' : 'Chọn giờ nhắc nhở'}
+            </Text>
+          </TouchableOpacity>
+          
+          {reminderTime && (
+            <TouchableOpacity 
+              style={styles.clearReminderButton} 
+              onPress={() => setReminderTime(null)}
+            >
+              <Text style={styles.clearReminderText}>Xóa</Text>
+            </TouchableOpacity>
+          )}
+        </View>
+        
+        {reminderTime && (
+          <Text style={styles.reminderSelectedText}>
+            Đã đặt: {reminderTime.toLocaleString('vi-VN')}
+          </Text>
+        )}
+
+        {showPicker && (
+          <DateTimePicker
+            value={reminderTime || new Date()}
+            mode="datetime"
+            display="default"
+            onChange={onChangeDate}
+            minimumDate={new Date()}
+          />
+        )}
+      </ThemedView>
+
+      <TouchableOpacity style={styles.pdfButton} onPress={exportToPDF} activeOpacity={0.8}>
+        <Text style={styles.pdfButtonText}>📄 Xuất file PDF</Text>
+      </TouchableOpacity>
+
       <ThemedView style={styles.helpContainer}>
         <ThemedText style={styles.helpText}>
           💡 Mẹo: Nhấn &quot;Khôi phục&quot; để trở về nội dung gốc
@@ -169,6 +317,59 @@ export default function EditNoteScreen({ note, onSave, onBack }) {
 }
 
 const styles = StyleSheet.create({
+  pdfButton: {
+    backgroundColor: '#dc3545',
+    paddingVertical: 12,
+    borderRadius: 10,
+    alignItems: 'center',
+    marginBottom: 15,
+  },
+  pdfButtonText: {
+    color: '#fff',
+    fontWeight: 'bold',
+    fontSize: 15,
+  },
+  reminderContainer: {
+    marginBottom: 20,
+    backgroundColor: '#1c1c1e',
+    padding: 15,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: '#3a3a3c',
+  },
+  reminderRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+  },
+  reminderButton: {
+    backgroundColor: '#3a3a3c',
+    paddingVertical: 10,
+    paddingHorizontal: 15,
+    borderRadius: 8,
+    flex: 1,
+    alignItems: 'center',
+  },
+  reminderButtonText: {
+    color: '#4da6ff',
+    fontWeight: '600',
+  },
+  clearReminderButton: {
+    backgroundColor: '#3a1414',
+    paddingVertical: 10,
+    paddingHorizontal: 15,
+    borderRadius: 8,
+  },
+  clearReminderText: {
+    color: '#ff6b6b',
+    fontWeight: '600',
+  },
+  reminderSelectedText: {
+    color: '#28a745',
+    marginTop: 10,
+    fontSize: 14,
+    fontWeight: '500',
+  },
   navigationContainer: {
     flexDirection: 'row',
     justifyContent: 'space-between',

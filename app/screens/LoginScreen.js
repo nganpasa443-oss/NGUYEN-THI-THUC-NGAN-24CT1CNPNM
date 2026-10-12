@@ -18,7 +18,7 @@ import { API_BASE_URL } from '../../config/api';
 
 const BACKEND_URL = `${API_BASE_URL}/auth/login.php`;
 
-export default function LoginScreen({ onLogin, onRegister = null }) {
+export default function LoginScreen({ onLogin, onRegister = null, onForgotPassword = null }) {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
@@ -37,33 +37,40 @@ export default function LoginScreen({ onLogin, onRegister = null }) {
       const text = await response.text();
       console.log('Server trả về:', text);
       let data;
-      try { data = JSON.parse(text); } 
-      catch { throw new Error('Server trả về dữ liệu không hợp lệ:\n' + text); }
+      try {
+        data = JSON.parse(text);
+      } catch {
+        Alert.alert('Lỗi', 'Server trả về dữ liệu không hợp lệ:\n' + text);
+        return;
+      }
 
-      if (!response.ok) throw new Error(data.message || 'Đăng nhập thất bại!');
+      if (!response.ok || data.status === 'error' || !data.user) {
+        Alert.alert('Đăng nhập thất bại', data.message || 'Email hoặc mật khẩu không đúng!');
+        return;
+      }
 
       const userData = {
-          id: data.user.id || null,
-          name: data.user.name || '',
-          email: data.user.email || '',
-          role: data.user.role || '',   // ⭐ thêm dòng này
-          registeredDate: data.user.registeredDate || data.user.registered_date || '',
-          profileImage: data.user.profileImage
-            ? { 
-                uri: (() => {
-                  const imgUri = data.user.profileImage.uri || data.user.profileImage;
-                  return imgUri.startsWith('http') || imgUri.startsWith('file://') || imgUri.startsWith('data:')
-                    ? imgUri
-                    : `${API_BASE_URL}/${imgUri}`;
-                })()
-              }
-            : null
-        };
+        id: data.user.id || null,
+        name: data.user.name || '',
+        email: data.user.email || '',
+        role: data.user.role || '',   // ⭐ thêm dòng này
+        registeredDate: data.user.registeredDate || data.user.registered_date || '',
+        profileImage: data.user.profileImage
+          ? { 
+              uri: (() => {
+                const imgUri = data.user.profileImage.uri || data.user.profileImage;
+                return imgUri.startsWith('http') || imgUri.startsWith('file://') || imgUri.startsWith('data:')
+                  ? imgUri
+                  : `${API_BASE_URL}/${imgUri}`;
+              })()
+            }
+          : null
+      };
 
       onLogin(userData);
 
     } catch (error) {
-      Alert.alert('Lỗi', 'Không thể kết nối server!\n' + error.message);
+      Alert.alert('Lỗi', 'Không thể kết nối server!\n' + (error.message || ''));
     } finally {
       setLoading(false);
     }
@@ -120,6 +127,16 @@ export default function LoginScreen({ onLogin, onRegister = null }) {
               />
             </View>
           </ThemedView>
+
+          {onForgotPassword && (
+            <TouchableOpacity
+              style={styles.forgotPasswordButton}
+              onPress={onForgotPassword}
+              activeOpacity={0.7}
+            >
+              <ThemedText style={styles.forgotPasswordText}>Quên mật khẩu?</ThemedText>
+            </TouchableOpacity>
+          )}
 
           <View style={styles.buttonContainer}>
             <TouchableOpacity
@@ -258,5 +275,15 @@ const styles = StyleSheet.create({
     color: '#C9CDD6',
     fontSize: 15,
     fontWeight: '600'
+  },
+  forgotPasswordButton: {
+    alignSelf: 'flex-end',
+    marginBottom: 16,
+    paddingVertical: 4,
+  },
+  forgotPasswordText: {
+    color: '#4A90E2',
+    fontSize: 14,
+    fontWeight: '600',
   }
 });

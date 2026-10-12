@@ -1,5 +1,11 @@
 // server.js
-require('dotenv').config();
+const path = require('path');
+const dotenv = require('dotenv');
+
+// Nạp biến môi trường từ backend/.env hoặc root .env
+dotenv.config({ path: path.join(__dirname, '.env') });
+dotenv.config();
+
 const express = require('express');
 const mysql = require('mysql2');
 const bodyParser = require('body-parser');
@@ -7,7 +13,6 @@ const cors = require('cors');
 const nodemailer = require('nodemailer');
 const crypto = require('crypto');
 const fs = require('fs');
-const path = require('path');
 const cloudinary = require('cloudinary').v2;
 
 cloudinary.config({ 
@@ -53,16 +58,33 @@ db.getConnection((err, connection) => {
   }
 });
 
-// Nodemailer setup
+// Email SMTP credentials (được nạp từ file .env hoặc Vercel Environment Variables)
+const EMAIL_USER = (process.env.EMAIL_USER || '').trim();
+const EMAIL_PASS = (process.env.EMAIL_PASS || '').replace(/\s+/g, '');
+
+// Nodemailer setup (SMTP)
 const transporter = nodemailer.createTransport({
-  host: 'smtp.gmail.com',
-  port: 465,
-  secure: true,
+  host: process.env.SMTP_HOST || 'smtp.gmail.com',
+  port: parseInt(process.env.SMTP_PORT || '465', 10),
+  secure: process.env.SMTP_SECURE ? process.env.SMTP_SECURE === 'true' : true,
   auth: {
-    user: process.env.EMAIL_USER,
-    pass: process.env.EMAIL_PASS,
+    user: EMAIL_USER,
+    pass: EMAIL_PASS,
   }
 });
+
+// Kiểm tra kết nối SMTP
+if (process.env.EMAIL_USER && !process.env.EMAIL_USER.includes('your_email')) {
+  transporter.verify((error) => {
+    if (error) {
+      console.warn('⚠️ Cảnh báo xác thực SMTP:', error.message);
+    } else {
+      console.log(`✅ Kết nối SMTP thành công! Sẵn sàng gửi email qua ${process.env.EMAIL_USER}`);
+    }
+  });
+} else {
+  console.log('ℹ️ SMTP chưa được cấu hình (Cần cập nhật EMAIL_USER và EMAIL_PASS trong .env)');
+}
 
 // In-memory store for verification codes
 const resetCodes = {};
@@ -327,31 +349,55 @@ app.post(['/api/send-reset-code', '/notes_api/api/send-reset-code'], (req, res) 
   const { email } = req.body;
   if (!email) return res.status(400).json({ success: false, message: 'Vui lòng nhập email!' });
 
-  db.query('SELECT id FROM users WHERE email = ?', [email.trim().toLowerCase()], (err, results) => {
-    if (err) return res.status(500).json({ success: false, message: 'Lỗi server!' });
+  const cleanEmail = email.trim().toLowerCase();
+  db.query('SELECT id FROM users WHERE email = ?', [cleanEmail], (err, results) => {
+    if (err) return res.status(500).json({ success: false, message: 'Lỗi server CSDL!' });
     if (results.length === 0) return res.status(400).json({ success: false, message: 'Email không tồn tại trong hệ thống!' });
 
     const code = Math.floor(100000 + Math.random() * 900000).toString();
-    resetCodes[email.trim().toLowerCase()] = code;
 
-    console.log(`[RESET CODE] Code cho ${email}: ${code}`);
-
-    const mailOptions = {
-      from: process.env.EMAIL_USER,
-      to: email.trim(),
-      subject: 'Mã đặt lại mật khẩu - Notes App',
-      text: `Mã xác nhận đặt lại mật khẩu của bạn là: ${code}. Mã có hiệu lực trong 5 phút.`
-    };
-
-    transporter.sendMail(mailOptions, (error) => {
-      if (error) {
-        console.log('Nodemailer Error:', error.message);
-        return res.json({ 
-          success: true, 
-          message: 'Mã xác nhận đã được tạo thành công! (Nodemailer chưa được cấu hình, vui lòng xem mã tại console của backend server)' 
-        });
+    // Lưu mã vào bảng password_resets (hạn 10 phút)
+    const saveQuery = 'REPLACE INTO password_resets (email, code, expires_at) VALUES (?, ?, DATE_ADD(NOW(), INTERVAL 10 MINUTE))';
+    db.query(saveQuery, [cleanEmail, code], (errDb) => {
+      if (errDb) {
+        console.error('Lỗi lưu mã OTP vào DB:', errDb);
       }
-      res.json({ success: true, message: 'Mã xác nhận đã được gửi vào email của bạn!' });
+
+      console.log(`[RESET CODE] Code cho ${cleanEmail}: ${code}`);
+
+      const mailOptions = {
+        from: `"Notes App Support" <${EMAIL_USER}>`,
+        to: cleanEmail,
+        subject: 'Mã xác nhận đặt lại mật khẩu - Notes App',
+        html: `
+          <div style="font-family: Arial, sans-serif; max-width: 500px; margin: 0 auto; padding: 24px; border: 1px solid #e2e8f0; border-radius: 12px; background-color: #ffffff;">
+            <h2 style="color: #4A90E2; text-align: center; margin-bottom: 8px;">Notes App</h2>
+            <p style="color: #64748b; text-align: center; font-size: 14px; margin-top: 0;">Khôi phục mật khẩu tài khoản</p>
+            <hr style="border: none; border-top: 1px solid #edf2f7; margin: 16px 0;" />
+            <p style="color: #1e293b; font-size: 15px; line-height: 1.5;">Xin chào,</p>
+            <p style="color: #334155; font-size: 15px; line-height: 1.5;">Bạn vừa yêu cầu mã xác nhận để đặt lại mật khẩu cho tài khoản: <strong>${cleanEmail}</strong>.</p>
+            <div style="text-align: center; margin: 25px 0;">
+              <span style="display: inline-block; font-size: 32px; font-weight: 700; letter-spacing: 6px; color: #4A90E2; background-color: #F0F7FF; padding: 12px 28px; border-radius: 8px; border: 1.5px dashed #4A90E2;">${code}</span>
+            </div>
+            <p style="color: #64748b; font-size: 14px; line-height: 1.5;">Mã xác nhận này có hiệu lực trong vòng <strong>10 phút</strong>. Vui lòng không chia sẻ mã này với bất kỳ ai để bảo đảm an toàn.</p>
+            <hr style="border: none; border-top: 1px solid #edf2f7; margin: 20px 0;" />
+            <p style="color: #94a3b8; font-size: 12px; text-align: center; margin-bottom: 0;">Nếu bạn không thực hiện yêu cầu này, vui lòng bỏ qua email.</p>
+          </div>
+        `,
+        text: `Mã xác nhận đặt lại mật khẩu của bạn là: ${code}. Mã có hiệu lực trong 10 phút.`
+      };
+
+      transporter.sendMail(mailOptions, (error, info) => {
+        if (error) {
+          console.error('Lỗi gửi email qua SMTP:', error.message);
+          return res.status(500).json({ 
+            success: false, 
+            message: `Không thể gửi email: ${error.message}. Vui lòng kiểm tra lại cấu hình SMTP!` 
+          });
+        }
+        console.log(`✅ Đã gửi mã OTP đến ${cleanEmail}: ${info.messageId}`);
+        res.json({ success: true, message: 'Mã xác nhận đã được gửi vào hộp thư email của bạn!' });
+      });
     });
   });
 });
@@ -361,12 +407,16 @@ app.post(['/api/verify-reset-code', '/notes_api/api/verify-reset-code'], (req, r
   const { email, code } = req.body;
   if (!email || !code) return res.status(400).json({ success: false, message: 'Vui lòng cung cấp email và mã xác nhận!' });
 
-  const savedCode = resetCodes[email.trim().toLowerCase()];
-  if (savedCode && savedCode === code.toString()) {
-    res.json({ success: true, message: 'Mã xác nhận chính xác!' });
-  } else {
-    res.status(400).json({ success: false, message: 'Mã xác nhận không đúng!' });
-  }
+  const cleanEmail = email.trim().toLowerCase();
+  const verifyQuery = 'SELECT * FROM password_resets WHERE email = ? AND code = ? AND expires_at > NOW()';
+  db.query(verifyQuery, [cleanEmail, code.toString().trim()], (err, results) => {
+    if (err) return res.status(500).json({ success: false, message: 'Lỗi server CSDL!' });
+    if (results.length > 0) {
+      res.json({ success: true, message: 'Mã xác nhận chính xác!' });
+    } else {
+      res.status(400).json({ success: false, message: 'Mã xác nhận không đúng hoặc đã hết hạn!' });
+    }
+  });
 });
 
 // Đặt lại mật khẩu mới
@@ -374,17 +424,21 @@ app.post(['/api/reset-password', '/notes_api/api/reset-password'], (req, res) =>
   const { email, code, newPassword } = req.body;
   if (!email || !code || !newPassword) return res.status(400).json({ success: false, message: 'Thiếu thông tin!' });
 
-  const savedCode = resetCodes[email.trim().toLowerCase()];
-  if (!savedCode || savedCode !== code.toString()) {
-    return res.status(400).json({ success: false, message: 'Mã xác nhận không hợp lệ hoặc đã hết hạn!' });
-  }
+  const cleanEmail = email.trim().toLowerCase();
+  const verifyQuery = 'SELECT * FROM password_resets WHERE email = ? AND code = ? AND expires_at > NOW()';
+  db.query(verifyQuery, [cleanEmail, code.toString().trim()], (err, results) => {
+    if (err) return res.status(500).json({ success: false, message: 'Lỗi server CSDL!' });
+    if (results.length === 0) {
+      return res.status(400).json({ success: false, message: 'Mã xác nhận không hợp lệ hoặc đã hết hạn!' });
+    }
 
-  const hashedPassword = md5(newPassword);
+    const hashedPassword = md5(newPassword);
 
-  db.query('UPDATE users SET password = ? WHERE email = ?', [hashedPassword, email.trim().toLowerCase()], (err) => {
-    if (err) return res.status(500).json({ success: false, message: 'Lỗi server!' });
-    delete resetCodes[email.trim().toLowerCase()];
-    res.json({ success: true, message: 'Mật khẩu đã được thay đổi thành công!' });
+    db.query('UPDATE users SET password = ? WHERE email = ?', [hashedPassword, cleanEmail], (errUpdate) => {
+      if (errUpdate) return res.status(500).json({ success: false, message: 'Lỗi cập nhật mật khẩu!' });
+      db.query('DELETE FROM password_resets WHERE email = ?', [cleanEmail]);
+      res.json({ success: true, message: 'Mật khẩu đã được thay đổi thành công!' });
+    });
   });
 });
 

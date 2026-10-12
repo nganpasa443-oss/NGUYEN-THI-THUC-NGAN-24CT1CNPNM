@@ -1,6 +1,5 @@
 // screens/AccountScreen.js
 import * as Print from 'expo-print';
-import { shareAsync } from 'expo-sharing';
 import { useEffect, useState } from 'react';
 import {
   Alert,
@@ -28,12 +27,12 @@ export default function AccountScreen({
   const [editName, setEditName] = useState(user?.name || '');
   const [editEmail, setEditEmail] = useState(user?.email || '');
   const [isGeneratingPDF, setIsGeneratingPDF] = useState(false);
-  const [, setTick] = useState(0);
+  const [currentTime, setCurrentTime] = useState(() => Date.now());
 
   // Cập nhật giao diện mỗi giây để hiển thị thời gian chạy như đồng hồ
   useEffect(() => {
     const timer = setInterval(() => {
-      setTick(t => t + 1);
+      setCurrentTime(Date.now());
     }, 1000);
     return () => clearInterval(timer);
   }, []);
@@ -64,8 +63,7 @@ export default function AccountScreen({
 
     if (!createdTime) return { text: 'Không xác định', detailed: 'Thông tin ngày tạo không có sẵn' };
 
-    const now = Date.now();
-    const diffMs = now - createdTime;
+    const diffMs = currentTime - createdTime;
     if (diffMs < 0) return { text: 'Vừa xong', detailed: 'Vừa xong' };
 
     const totalSeconds = Math.floor(diffMs / 1000);
@@ -329,21 +327,12 @@ export default function AccountScreen({
         profileImageBase64 = await convertImageToBase64(user.profileImage.uri);
       }
       const htmlContent = createPDFContent(profileImageBase64);
-      const { uri } = await Print.printToFileAsync({ html: htmlContent, base64: false });
       setIsGeneratingPDF(false);
 
-      Alert.alert(
-        'PDF đã được tạo!',
-        `Bạn muốn làm gì với file PDF?`,
-        [
-          { text: 'Đóng', style: 'cancel' },
-          { text: '📤 Chia sẻ', onPress: () => shareAsync(uri) },
-          { text: '👁️ Xem', onPress: () => Print.printAsync({ uri }) }
-        ]
-      );
+      await Print.printAsync({ html: htmlContent });
     } catch (error) {
       setIsGeneratingPDF(false);
-      Alert.alert('Lỗi', 'Không thể tạo PDF: ' + error.message);
+      Alert.alert('Lỗi', 'Không thể tạo file PDF: ' + (error.message || ''));
     }
   };
 

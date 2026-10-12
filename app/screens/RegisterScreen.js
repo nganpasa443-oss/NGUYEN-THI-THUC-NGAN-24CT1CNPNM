@@ -111,8 +111,12 @@ export default function RegisterScreen({ onRegister, onBackToLogin }) {
       const text = await response.text();
       console.log('📌Server trả về:', text);
       let data;
-      try { data = JSON.parse(text); } 
-      catch { throw new Error('Server trả về dữ liệu không hợp lệ:\n' + text); }
+      try {
+        data = JSON.parse(text);
+      } catch {
+        Alert.alert('Lỗi', 'Server trả về dữ liệu không hợp lệ:\n' + text);
+        return;
+      }
 
       if (data.status === 'success' && data.user) {
         // ⭐ Map profileImage và registeredDate để AccountScreen hiển thị đúng

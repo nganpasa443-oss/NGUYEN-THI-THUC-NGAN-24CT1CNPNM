@@ -31,13 +31,6 @@ export default function App() {
   // editingNote: ghi chú đang chỉnh sửa
   const [editingNote, setEditingNote] = useState(null);
 
-  // Tải ghi chú từ server mỗi khi vào màn hình Home
-  useEffect(() => {
-    if (user && user.id && currentScreen === 'home') {
-      fetchNotes(user.id);
-    }
-  }, [user, currentScreen]);
-
   const fetchNotes = async (userId) => {
     try {
       const response = await fetch(`${API_BASE_URL}/notes/${userId}`);
@@ -49,6 +42,14 @@ export default function App() {
       console.log('Lỗi tải ghi chú từ server:', error);
     }
   };
+
+  // Tải ghi chú từ server mỗi khi vào màn hình Home
+  useEffect(() => {
+    if (user && user.id && currentScreen === 'home') {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
+      fetchNotes(user.id);
+    }
+  }, [user, currentScreen]);
 
   // ============================
   // CHUYỂN MÀN HÌNH
@@ -192,22 +193,29 @@ export default function App() {
   // ============================
   // XÓA TÀI KHOẢN
   // ============================
-  const handleDeleteAccount = () => {
-    Alert.alert(
-      'Xóa tài khoản',
-      'Bạn có chắc chắn muốn xóa tài khoản?',
-      [
-        { text: 'Hủy', style: 'cancel' },
-        {
-          text: 'Xóa',
-          style: 'destructive',
-          onPress: () => {
-            handleLogout();
-            Alert.alert('Tài khoản đã xóa');
-          }
-        }
-      ]
-    );
+  const handleDeleteAccount = async () => {
+    if (!user || !user.id) {
+      Alert.alert('Lỗi', 'Không tìm thấy thông tin tài khoản!');
+      return;
+    }
+
+    try {
+      const response = await fetch(`${API_BASE_URL}/delete_user.php`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id: user.id })
+      });
+      const data = await response.json();
+      if (data.status === 'success') {
+        Alert.alert('Thành công', 'Tài khoản của bạn đã được xóa!');
+        handleLogout();
+      } else {
+        Alert.alert('Lỗi', data.message || 'Không thể xóa tài khoản!');
+      }
+    } catch (error) {
+      console.log('Lỗi xóa tài khoản:', error);
+      Alert.alert('Lỗi', 'Không thể kết nối server để xóa tài khoản!');
+    }
   };
 
   // ============================

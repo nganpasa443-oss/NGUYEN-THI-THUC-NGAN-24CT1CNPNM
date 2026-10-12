@@ -30,8 +30,28 @@ export default function AdminScreen({ onBack, currentUser }) {
 
   const isAdmin = currentUser?.role === 'admin';
 
+  const fetchUsers = async () => {
+    try {
+      const res = await fetch(`${API_BASE}/users.php`);
+      if (!res.ok) {
+        Alert.alert('Lỗi', `Server phản hồi lỗi (Status: ${res.status})`);
+        return;
+      }
+      const data = await res.json();
+      if (data.status === 'success') {
+        setUsers(data.users || []);
+      } else {
+        Alert.alert('Lỗi', data.message || 'Không thể tải danh sách user');
+      }
+    } catch (err) {
+      Alert.alert('Lỗi', 'Không thể kết nối server!');
+      console.log('Fetch error:', err);
+    }
+  };
+
   useEffect(() => {
     if (isAdmin) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       fetchUsers();
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -53,24 +73,6 @@ export default function AdminScreen({ onBack, currentUser }) {
       </ScrollView>
     );
   }
-
-
-  const fetchUsers = async () => {
-    try {
-      const res = await fetch(`${API_BASE}/users.php`);
-      console.log('Response status:', res.status);
-      const data = await res.json();
-      console.log('Data:', data);
-      if (data.status === 'success') {
-        setUsers(data.users);
-      } else {
-        Alert.alert('Lỗi', data.message || 'Không thể tải danh sách user');
-      }
-    } catch (err) {
-      Alert.alert('Lỗi', 'Không thể kết nối server!');
-      console.log('Fetch error:', err);
-    }
-  };
 
   const resetForm = () => {
     setFormData({ name: '', email: '', password: '', role: 'user', status: 'active' });
