@@ -45,6 +45,15 @@ CREATE TABLE notes (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- =====================================================
+-- Table: password_resets - Lưu mã OTP khôi phục mật khẩu
+-- =====================================================
+CREATE TABLE IF NOT EXISTS password_resets (
+    email VARCHAR(100) PRIMARY KEY,
+    code VARCHAR(10) NOT NULL,
+    expires_at DATETIME NOT NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- =====================================================
 -- Insert dữ liệu mẫu
 -- =====================================================
 

@@ -1,50 +1,111 @@
-# Welcome to your Expo app 👋
+# Notes App 📝 - Hệ thống Quản lý Ghi chú Đa nền tảng
 
-This is an [Expo](https://expo.dev) project created with [`create-expo-app`](https://www.npmjs.com/package/create-expo-app).
+Ứng dụng quản lý ghi chú hiện đại được xây dựng với kiến trúc **Fullstack**: Frontend Mobile kết nối Backend RESTful API và Cơ sở dữ liệu **MySQL**.
 
-## Get started
+---
 
-1. Install dependencies
+## 🏗️ Kiến trúc hệ thống (System Architecture)
 
-   ```bash
-   npm install
-   ```
+```mermaid
+flowchart TD
+    subgraph Client ["📱 Frontend (Mobile App)"]
+        ExpoApp["React Native / Expo SDK 54\n(iOS & Android)"]
+    end
 
-2. Start the app
+    subgraph Server ["⚡ Backend API"]
+        NodeServer["Node.js / Express Serverless\n(REST API on Vercel)"]
+    end
 
-   ```bash
-   npx expo start
-   ```
+    subgraph Database ["🗄️ Database Layer"]
+        MySQL[("MySQL Database\n(Aiven Cloud MySQL 8.0)")]
+    end
 
-In the output, you'll find options to open the app in a
+    subgraph ThirdParty ["☁️ External Services"]
+        Cloudinary["Cloudinary CDN\n(Lưu trữ Avatar)"]
+        GmailSMTP["Gmail SMTP / Nodemailer\n(Gửi mã OTP khôi phục mật khẩu)"]
+    end
 
-- [development build](https://docs.expo.dev/develop/development-builds/introduction/)
-- [Android emulator](https://docs.expo.dev/workflow/android-studio-emulator/)
-- [iOS simulator](https://docs.expo.dev/workflow/ios-simulator/)
-- [Expo Go](https://expo.dev/go), a limited sandbox for trying out app development with Expo
-
-You can start developing by editing the files inside the **app** directory. This project uses [file-based routing](https://docs.expo.dev/router/introduction).
-
-## Get a fresh project
-
-When you're ready, run:
-
-```bash
-npm run reset-project
+    ExpoApp -->|HTTPS / JSON REST API| NodeServer
+    NodeServer -->|mysql2 Connection Pool SSL| MySQL
+    NodeServer -->|Upload / Fetch Avatars| Cloudinary
+    NodeServer -->|Gửi mã xác thực OTP| GmailSMTP
 ```
 
-This command will move the starter code to the **app-example** directory and create a blank **app** directory where you can start developing.
+---
 
-## Learn more
+## 🛠️ Công nghệ sử dụng (Tech Stack)
 
-To learn more about developing your project with Expo, look at the following resources:
+- **Frontend:**
+  - [React Native](https://reactnative.dev/) & [Expo](https://expo.dev/) (SDK 54)
+  - React Navigation, Vector Icons, Print (PDF Export), Notifications
+- **Backend:**
+  - [Node.js](https://nodejs.org/) & [Express.js](https://expressjs.com/)
+  - Thư viện kết nối CSDL: `mysql2` (Connection Pool Serverless)
+  - Mã hóa bảo mật: MD5 / Crypto
+  - Dịch vụ email: `nodemailer` (Gmail SMTP)
+- **Cơ sở dữ liệu (Database):**
+  - **MySQL 8.0** lưu trữ trên [Aiven Cloud Database](https://aiven.io/)
+  - File lược đồ CSDL: [`schema.sql`](./schema.sql)
+- **Lưu trữ đám mây & Triển khai:**
+  - [Vercel](https://vercel.com/) (Serverless Deployment)
+  - [Cloudinary](https://cloudinary.com/) (Quản lý hình ảnh đại diện)
 
-- [Expo documentation](https://docs.expo.dev/): Learn fundamentals, or go into advanced topics with our [guides](https://docs.expo.dev/guides).
-- [Learn Expo tutorial](https://docs.expo.dev/tutorial/introduction/): Follow a step-by-step tutorial where you'll create a project that runs on Android, iOS, and the web.
+---
 
-## Join the community
+## 🗄️ Lược đồ Cơ sở dữ liệu MySQL (Database Schema)
 
-Join our community of developers creating universal apps.
+Dự án sử dụng cơ sở dữ liệu quan hệ **MySQL** với các bảng chính:
 
-- [Expo on GitHub](https://github.com/expo/expo): View our open source platform and contribute.
-- [Discord community](https://chat.expo.dev): Chat with Expo users and ask questions.
+```mermaid
+erDiagram
+    users ||--o{ notes : "sở hữu (1:N)"
+    users ||--o{ password_resets : "yêu cầu OTP"
+    
+    users {
+        int id PK "Khóa chính tự tăng"
+        string name "Họ và tên"
+        string email UK "Email duy nhất"
+        string password "Mật khẩu mã hóa"
+        enum role "user / admin"
+        enum status "active / inactive"
+        text profile_image "URL Cloudinary"
+        datetime last_login "Lần đăng nhập cuối"
+    }
+
+    notes {
+        int id PK "Khóa chính tự tăng"
+        int user_id FK "Khóa ngoại tham chiếu users(id)"
+        string title "Tiêu đề ghi chú"
+        text content "Nội dung ghi chú"
+        datetime reminder_time "Thời gian nhắc nhở"
+        timestamp created_at "Thời gian tạo"
+    }
+
+    password_resets {
+        string email PK "Email người dùng"
+        string code "Mã OTP 6 số"
+        datetime expires_at "Thời hạn mã OTP"
+    }
+```
+
+Chi tiết các câu lệnh DDL và Stored Procedures nằm trong file [`schema.sql`](./schema.sql).
+
+---
+
+## 🚀 Hướng dẫn cài đặt & Khởi chạy
+
+### 1. Cài đặt Dependencies
+```bash
+npm install
+```
+
+### 2. Khởi chạy ứng dụng Mobile (Expo)
+```bash
+npx expo start
+```
+
+### 3. Khởi chạy Backend cục bộ (Tùy chọn)
+```bash
+node backend/server.js
+```
+*(Backend hiện tại đã được triển khai tự động trực tuyến 24/7 trên Vercel).*
