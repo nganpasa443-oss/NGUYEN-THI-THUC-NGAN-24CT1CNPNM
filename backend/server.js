@@ -141,10 +141,10 @@ app.post('/notes_api/auth/login.php', (req, res) => {
       return res.status(403).json({ message: 'Tài khoản đã bị khóa!' });
     }
 
-    // Cập nhật last_login trong database bằng giờ Việt Nam (UTC+7)
-    db.query('UPDATE users SET last_login = CONVERT_TZ(NOW(), "+00:00", "+07:00") WHERE id = ?', [user.id]);
-
     const vnNow = getVietnamDateTime();
+    // Cập nhật last_login trong database bằng giờ Việt Nam (UTC+7)
+    db.query('UPDATE users SET last_login = ? WHERE id = ?', [vnNow, user.id]);
+
     res.json({
       status: 'success',
       message: 'Đăng nhập thành công!',
@@ -184,14 +184,15 @@ app.post('/notes_api/auth/register.php', async (req, res) => {
     }
   }
 
-  const insertQuery = 'INSERT INTO users (name, email, password, role, status, profile_image, registered_date) VALUES (?, ?, ?, ?, ?, ?, CONVERT_TZ(NOW(), "+00:00", "+07:00"))';
-  db.query(insertQuery, [name.trim(), email.trim().toLowerCase(), hashedPassword, 'user', 'active', profile_image_url], (err, result) => {
+  const vnNow = getVietnamDateTime();
+  const insertQuery = 'INSERT INTO users (name, email, password, role, status, profile_image, registered_date) VALUES (?, ?, ?, ?, ?, ?, ?)';
+  db.query(insertQuery, [name.trim(), email.trim().toLowerCase(), hashedPassword, 'user', 'active', profile_image_url, vnNow], (err, result) => {
     if (err) {
       if (err.code === 'ER_DUP_ENTRY') {
         return res.status(400).json({ message: 'Email đã tồn tại!' });
       }
       console.error(err);
-      return res.status(500).json({ message: 'Lỗi server khi đăng ký!' });
+      return res.status(500).json({ message: 'Lỗi server khi đăng ký!', error: err.message });
     }
 
     const newUserId = result.insertId;
@@ -223,8 +224,9 @@ app.post('/notes_api/notes/create_note.php', (req, res) => {
     return res.status(400).json({ status: false, message: 'Thiếu thông tin user_id hoặc title!' });
   }
 
-  const query = 'INSERT INTO notes (user_id, title, content, reminder_time, created_at) VALUES (?, ?, ?, ?, CONVERT_TZ(NOW(), "+00:00", "+07:00"))';
-  db.query(query, [user_id, title.trim(), content ? content.trim() : '', reminder_time || null], (err, result) => {
+  const vnNow = getVietnamDateTime();
+  const query = 'INSERT INTO notes (user_id, title, content, reminder_time, created_at) VALUES (?, ?, ?, ?, ?)';
+  db.query(query, [user_id, title.trim(), content ? content.trim() : '', reminder_time || null, vnNow], (err, result) => {
     if (err) {
       console.error(err);
       return res.status(500).json({ status: false, message: 'Lỗi lưu ghi chú!' });
