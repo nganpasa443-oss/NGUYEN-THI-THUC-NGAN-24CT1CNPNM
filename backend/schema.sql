@@ -21,8 +21,8 @@ CREATE TABLE users (
     profile_image TEXT,
     registered_date DATETIME DEFAULT CURRENT_TIMESTAMP,
     last_login DATETIME,
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    created_at DATETIME,
+    updated_at DATETIME,
     INDEX idx_email (email),
     INDEX idx_role (role),
     INDEX idx_status (status)
@@ -37,8 +37,8 @@ CREATE TABLE notes (
     title VARCHAR(200) NOT NULL,
     content TEXT,
     reminder_time DATETIME NULL,
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    created_at DATETIME,
+    updated_at DATETIME,
     FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
     INDEX idx_user_id (user_id),
     INDEX idx_created_at (created_at)

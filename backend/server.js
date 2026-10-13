@@ -185,8 +185,8 @@ app.post('/notes_api/auth/register.php', async (req, res) => {
   }
 
   const vnNow = getVietnamDateTime();
-  const insertQuery = 'INSERT INTO users (name, email, password, role, status, profile_image, registered_date) VALUES (?, ?, ?, ?, ?, ?, ?)';
-  db.query(insertQuery, [name.trim(), email.trim().toLowerCase(), hashedPassword, 'user', 'active', profile_image_url, vnNow], (err, result) => {
+  const insertQuery = 'INSERT INTO users (name, email, password, role, status, profile_image, registered_date, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)';
+  db.query(insertQuery, [name.trim(), email.trim().toLowerCase(), hashedPassword, 'user', 'active', profile_image_url, vnNow, vnNow, vnNow], (err, result) => {
     if (err) {
       if (err.code === 'ER_DUP_ENTRY') {
         return res.status(400).json({ message: 'Email đã tồn tại!' });
@@ -210,6 +210,7 @@ app.post('/notes_api/auth/register.php', async (req, res) => {
           email: user.email,
           role: user.role,
           registered_date: user.registered_date || vnNow,
+          created_at: user.created_at || vnNow,
           profile_image: user.profile_image
         }
       });
@@ -225,8 +226,8 @@ app.post('/notes_api/notes/create_note.php', (req, res) => {
   }
 
   const vnNow = getVietnamDateTime();
-  const query = 'INSERT INTO notes (user_id, title, content, reminder_time, created_at) VALUES (?, ?, ?, ?, ?)';
-  db.query(query, [user_id, title.trim(), content ? content.trim() : '', reminder_time || null, vnNow], (err, result) => {
+  const query = 'INSERT INTO notes (user_id, title, content, reminder_time, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?)';
+  db.query(query, [user_id, title.trim(), content ? content.trim() : '', reminder_time || null, vnNow, vnNow], (err, result) => {
     if (err) {
       console.error(err);
       return res.status(500).json({ status: false, message: 'Lỗi lưu ghi chú!' });
@@ -263,7 +264,8 @@ app.get('/notes_api/notes/:userId', (req, res) => {
 app.put('/notes_api/notes/:id', (req, res) => {
   const { id } = req.params;
   const { title, content, reminder_time } = req.body;
-  db.query('UPDATE notes SET title = ?, content = ?, reminder_time = ? WHERE id = ?', [title, content, reminder_time || null, id], (err) => {
+  const vnNow = getVietnamDateTime();
+  db.query('UPDATE notes SET title = ?, content = ?, reminder_time = ?, updated_at = ? WHERE id = ?', [title, content, reminder_time || null, vnNow, id], (err) => {
     if (err) {
       console.error(err);
       return res.status(500).json({ message: 'Lỗi server' });
@@ -306,8 +308,10 @@ app.post('/notes_api/add_users.php', (req, res) => {
     return res.status(400).json({ status: 'error', message: 'Vui lòng nhập đầy đủ thông tin!' });
   }
 
-  const insertQuery = 'INSERT INTO users (name, email, password, role, status, registered_date) VALUES (?, ?, ?, ?, ?, CONVERT_TZ(NOW(), "+00:00", "+07:00"))';
-  db.query(insertQuery, [name.trim(), email.trim().toLowerCase(), hashedPassword, role || 'user', status || 'active'], (err, result) => {
+  const hashedPassword = md5(password);
+  const vnNow = getVietnamDateTime();
+  const insertQuery = 'INSERT INTO users (name, email, password, role, status, registered_date, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)';
+  db.query(insertQuery, [name.trim(), email.trim().toLowerCase(), hashedPassword, role || 'user', status || 'active', vnNow, vnNow, vnNow], (err, result) => {
     if (err) {
       if (err.code === 'ER_DUP_ENTRY') {
         return res.status(400).json({ status: 'error', message: 'Email đã tồn tại!' });
@@ -326,8 +330,9 @@ app.post('/notes_api/edit_user.php', (req, res) => {
     return res.status(400).json({ status: 'error', message: 'Thiếu thông tin!' });
   }
 
-  let query = 'UPDATE users SET name=?, email=?, role=?, status=?';
-  const params = [name.trim(), email.trim().toLowerCase(), role, status];
+  const vnNow = getVietnamDateTime();
+  let query = 'UPDATE users SET name=?, email=?, role=?, status=?, updated_at=?';
+  const params = [name.trim(), email.trim().toLowerCase(), role, status, vnNow];
 
   if (password && password.trim() !== '') {
     query += ', password=?';
