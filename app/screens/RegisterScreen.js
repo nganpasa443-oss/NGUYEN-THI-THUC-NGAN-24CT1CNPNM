@@ -132,7 +132,7 @@ export default function RegisterScreen({ onRegister, onBackToLogin }) {
                 })()
               } 
             : null,
-          registeredDate: data.user.registered_date || null
+          registeredDate: data.user.registered_date || data.user.registeredDate || new Date().toISOString()
         };
 
         Alert.alert('Thành công', data.message || 'Đăng ký thành công!', [

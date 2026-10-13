@@ -218,7 +218,7 @@ export default function EditNoteScreen({ note, onSave, onBack }) {
       {/* Thông tin ghi chú */}
       <ThemedView style={styles.noteInfoContainer}>
         <ThemedText style={styles.noteInfoText}>
-          📅 Ngày tạo: {note?.createdAt}
+          📅 Ngày tạo: {note?.createdAt ? new Date(note.createdAt).toLocaleString('vi-VN', { timeZone: 'Asia/Ho_Chi_Minh', hour12: true }) : 'Không rõ'}
         </ThemedText>
         {hasChanges && (
           <ThemedText style={styles.changesText}>

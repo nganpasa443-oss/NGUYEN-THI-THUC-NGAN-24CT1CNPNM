@@ -37,34 +37,74 @@ export default function AccountScreen({
     return () => clearInterval(timer);
   }, []);
 
+  // Chuyển đổi an toàn chuỗi ngày giờ sang Date với múi giờ Việt Nam (+07:00)
+  const parseSafeDate = (dateInput) => {
+    if (!dateInput) return null;
+    if (dateInput instanceof Date) return isNaN(dateInput.getTime()) ? null : dateInput;
+    if (typeof dateInput === 'string') {
+      const trimmed = dateInput.trim();
+      // Nếu là chuỗi SQL 'YYYY-MM-DD HH:mm:ss' hoặc 'YYYY-MM-DDTHH:mm:ss' không có múi giờ, gắn múi giờ Việt Nam +07:00
+      if (/^\d{4}-\d{2}-\d{2}[ T]\d{2}:\d{2}:\d{2}$/.test(trimmed)) {
+        return new Date(trimmed.replace(' ', 'T') + '+07:00');
+      }
+      const d = new Date(trimmed);
+      return isNaN(d.getTime()) ? null : d;
+    }
+    const d = new Date(dateInput);
+    return isNaN(d.getTime()) ? null : d;
+  };
+
   const formatRegisteredDate = (dateString) => {
     if (!dateString) return 'Không rõ';
-    const date = new Date(dateString);
-    if (isNaN(date.getTime())) return dateString;
+    const date = parseSafeDate(dateString);
+    if (!date) return String(dateString);
     
-    const day = String(date.getDate()).padStart(2, '0');
-    const month = String(date.getMonth() + 1).padStart(2, '0');
-    const year = date.getFullYear();
-    const hours = String(date.getHours()).padStart(2, '0');
-    const minutes = String(date.getMinutes()).padStart(2, '0');
-    const seconds = String(date.getSeconds()).padStart(2, '0');
-    
-    return `(${day}/${month}/${year} - ${hours}:${minutes}:${seconds})`;
+    // Format theo múi giờ chuẩn Việt Nam (Asia/Ho_Chi_Minh)
+    const formatter12 = new Intl.DateTimeFormat('vi-VN', {
+      timeZone: 'Asia/Ho_Chi_Minh',
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+      hour: '2-digit',
+      minute: '2-digit',
+      second: '2-digit',
+      hour12: true
+    });
+
+    const parts = formatter12.formatToParts(date);
+    const map = {};
+    parts.forEach(p => (map[p.type] = p.value));
+
+    // Lấy thêm giờ 24h
+    const formatter24 = new Intl.DateTimeFormat('vi-VN', {
+      timeZone: 'Asia/Ho_Chi_Minh',
+      hour: '2-digit',
+      minute: '2-digit',
+      second: '2-digit',
+      hour12: false
+    });
+    const parts24 = {};
+    formatter24.formatToParts(date).forEach(p => (parts24[p.type] = p.value));
+
+    const dayPeriod = (map.dayPeriod || '').toUpperCase();
+    return `(${map.day}/${map.month}/${map.year} - ${parts24.hour}:${map.minute}:${map.second} | ${map.hour}:${map.minute} ${dayPeriod})`;
   };
 
   const calculateAccountAge = () => {
     let createdTime = null;
 
     if (user?.createdAt) {
-      createdTime = new Date(user.createdAt).getTime();
+      const d = parseSafeDate(user.createdAt);
+      if (d) createdTime = d.getTime();
     } else if (user?.registeredDate) {
-      createdTime = new Date(user.registeredDate).getTime();
+      const d = parseSafeDate(user.registeredDate);
+      if (d) createdTime = d.getTime();
     }
 
     if (!createdTime) return { text: 'Không xác định', detailed: 'Thông tin ngày tạo không có sẵn' };
 
     const diffMs = currentTime - createdTime;
-    if (diffMs < 0) return { text: 'Vừa xong', detailed: 'Vừa xong' };
+    if (diffMs < 5000) return { text: 'Vừa xong', detailed: 'Vừa xong' };
 
     const totalSeconds = Math.floor(diffMs / 1000);
     const days = Math.floor(totalSeconds / (3600 * 24));
@@ -126,8 +166,8 @@ export default function AccountScreen({
   };
 
   const createPDFContent = (profileImageBase64) => {
-    const currentDate = new Date().toLocaleDateString('vi-VN');
-    const currentTime = new Date().toLocaleTimeString('vi-VN');
+    const currentDate = new Date().toLocaleDateString('vi-VN', { timeZone: 'Asia/Ho_Chi_Minh' });
+    const currentTime = new Date().toLocaleTimeString('vi-VN', { timeZone: 'Asia/Ho_Chi_Minh', hour12: true });
     const accountAgeInfo = calculateAccountAge();
 
     return `<!DOCTYPE html>

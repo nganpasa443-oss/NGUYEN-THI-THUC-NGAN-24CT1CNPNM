@@ -40,12 +40,18 @@ const db = mysql.createPool({
   user: process.env.DB_USER,
   password: process.env.DB_PASSWORD,  
   database: process.env.DB_NAME,
+  timezone: '+07:00',
   ssl: {
     rejectUnauthorized: false
   },
   waitForConnections: true,
   connectionLimit: 10,
   queueLimit: 0
+});
+
+// Đảm bảo mọi kết nối đến MySQL đều dùng múi giờ chuẩn Việt Nam (UTC+7)
+db.on('connection', (connection) => {
+  connection.query("SET time_zone = '+07:00';");
 });
 
 // Test connection
@@ -92,6 +98,19 @@ const resetCodes = {};
 // Helper: MD5 Hashing
 const md5 = (text) => crypto.createHash('md5').update(text).digest('hex');
 
+// Helper: Lấy thời gian chuẩn Việt Nam (UTC+7) định dạng 'YYYY-MM-DD HH:mm:ss'
+const getVietnamDateTime = () => {
+  const now = new Date();
+  const vnTime = new Date(now.getTime() + (7 * 60 + now.getTimezoneOffset()) * 60000);
+  const yyyy = vnTime.getFullYear();
+  const mm = String(vnTime.getMonth() + 1).padStart(2, '0');
+  const dd = String(vnTime.getDate()).padStart(2, '0');
+  const hh = String(vnTime.getHours()).padStart(2, '0');
+  const mi = String(vnTime.getMinutes()).padStart(2, '0');
+  const ss = String(vnTime.getSeconds()).padStart(2, '0');
+  return `${yyyy}-${mm}-${dd} ${hh}:${mi}:${ss}`;
+};
+
 // ================= ROUTE MAPPINGS TO MATCH PHP ENDPOINTS ================= //
 
 // 1. Đăng nhập (Login)
@@ -122,9 +141,10 @@ app.post('/notes_api/auth/login.php', (req, res) => {
       return res.status(403).json({ message: 'Tài khoản đã bị khóa!' });
     }
 
-    // Cập nhật last_login
-    db.query('UPDATE users SET last_login = NOW() WHERE id = ?', [user.id]);
+    // Cập nhật last_login trong database bằng giờ Việt Nam (UTC+7)
+    db.query('UPDATE users SET last_login = CONVERT_TZ(NOW(), "+00:00", "+07:00") WHERE id = ?', [user.id]);
 
+    const vnNow = getVietnamDateTime();
     res.json({
       status: 'success',
       message: 'Đăng nhập thành công!',
@@ -134,6 +154,7 @@ app.post('/notes_api/auth/login.php', (req, res) => {
         email: user.email,
         role: user.role,
         registeredDate: user.registered_date,
+        lastLogin: vnNow,
         profileImage: user.profile_image ? { uri: user.profile_image } : null
       }
     });
@@ -163,7 +184,7 @@ app.post('/notes_api/auth/register.php', async (req, res) => {
     }
   }
 
-  const insertQuery = 'INSERT INTO users (name, email, password, role, status, profile_image, registered_date) VALUES (?, ?, ?, ?, ?, ?, NOW())';
+  const insertQuery = 'INSERT INTO users (name, email, password, role, status, profile_image, registered_date) VALUES (?, ?, ?, ?, ?, ?, CONVERT_TZ(NOW(), "+00:00", "+07:00"))';
   db.query(insertQuery, [name.trim(), email.trim().toLowerCase(), hashedPassword, 'user', 'active', profile_image_url], (err, result) => {
     if (err) {
       if (err.code === 'ER_DUP_ENTRY') {
@@ -187,7 +208,7 @@ app.post('/notes_api/auth/register.php', async (req, res) => {
           name: user.name,
           email: user.email,
           role: user.role,
-          registered_date: user.registered_date,
+          registered_date: user.registered_date || vnNow,
           profile_image: user.profile_image
         }
       });
@@ -202,7 +223,7 @@ app.post('/notes_api/notes/create_note.php', (req, res) => {
     return res.status(400).json({ status: false, message: 'Thiếu thông tin user_id hoặc title!' });
   }
 
-  const query = 'INSERT INTO notes (user_id, title, content, reminder_time, created_at) VALUES (?, ?, ?, ?, NOW())';
+  const query = 'INSERT INTO notes (user_id, title, content, reminder_time, created_at) VALUES (?, ?, ?, ?, CONVERT_TZ(NOW(), "+00:00", "+07:00"))';
   db.query(query, [user_id, title.trim(), content ? content.trim() : '', reminder_time || null], (err, result) => {
     if (err) {
       console.error(err);
@@ -283,9 +304,7 @@ app.post('/notes_api/add_users.php', (req, res) => {
     return res.status(400).json({ status: 'error', message: 'Vui lòng nhập đầy đủ thông tin!' });
   }
 
-  const hashedPassword = md5(password);
-
-  const insertQuery = 'INSERT INTO users (name, email, password, role, status, registered_date) VALUES (?, ?, ?, ?, ?, NOW())';
+  const insertQuery = 'INSERT INTO users (name, email, password, role, status, registered_date) VALUES (?, ?, ?, ?, ?, CONVERT_TZ(NOW(), "+00:00", "+07:00"))';
   db.query(insertQuery, [name.trim(), email.trim().toLowerCase(), hashedPassword, role || 'user', status || 'active'], (err, result) => {
     if (err) {
       if (err.code === 'ER_DUP_ENTRY') {

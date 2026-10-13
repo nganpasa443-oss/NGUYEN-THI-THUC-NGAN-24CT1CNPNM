@@ -57,13 +57,13 @@ CREATE TABLE IF NOT EXISTS password_resets (
 -- Insert dữ liệu mẫu
 -- =====================================================
 
--- Insert Users (password đã mã hóa MD5 đơn giản, thực tế nên dùng bcrypt)
+-- Insert Users (password đã mã hóa MD5 đơn giản, thời gian chuẩn giờ Việt Nam UTC+7)
 INSERT INTO users (name, email, password, role, status, registered_date, last_login) VALUES
-('Demo User', 'demo@example.com', MD5('123456'), 'user', 'active', NOW(), NOW()),
-('Admin User', 'admin@example.com', MD5('admin123'), 'admin', 'active', NOW(), NOW()),
+('Demo User', 'demo@example.com', MD5('123456'), 'user', 'active', CONVERT_TZ(NOW(), '+00:00', '+07:00'), CONVERT_TZ(NOW(), '+00:00', '+07:00')),
+('Admin User', 'admin@example.com', MD5('admin123'), 'admin', 'active', CONVERT_TZ(NOW(), '+00:00', '+07:00'), CONVERT_TZ(NOW(), '+00:00', '+07:00')),
 ('Lan Hương', 'lanhuong23@gmail.com', MD5('lanhuong123456'), 'user', 'active', '2024-01-19 10:30:00', '2024-01-19 10:30:00'),
 ('Thục Ngân', 'tngan705@gmail.com', MD5('thucngan123456'), 'user', 'active', '2024-01-18 14:20:00', '2024-01-18 14:20:00'),
-('Test 11', 'test@example.com', MD5('test123'), 'user', 'inactive', NOW(), NULL);
+('Test 11', 'test@example.com', MD5('test123'), 'user', 'inactive', CONVERT_TZ(NOW(), '+00:00', '+07:00'), NULL);
 
 -- Insert Notes mẫu
 INSERT INTO notes (user_id, title, content, created_at) VALUES
@@ -130,7 +130,7 @@ CREATE PROCEDURE create_user(
 )
 BEGIN
     INSERT INTO users (name, email, password, role, registered_date)
-    VALUES (p_name, p_email, MD5(p_password), p_role, NOW());
+    VALUES (p_name, p_email, MD5(p_password), p_role, CONVERT_TZ(NOW(), '+00:00', '+07:00'));
     
     SELECT LAST_INSERT_ID() as user_id;
 END //
@@ -145,8 +145,8 @@ CREATE PROCEDURE create_note(
     IN p_content TEXT
 )
 BEGIN
-    INSERT INTO notes (user_id, title, content)
-    VALUES (p_user_id, p_title, p_content);
+    INSERT INTO notes (user_id, title, content, created_at)
+    VALUES (p_user_id, p_title, p_content, CONVERT_TZ(NOW(), '+00:00', '+07:00'));
     
     SELECT LAST_INSERT_ID() as note_id;
 END //

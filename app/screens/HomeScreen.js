@@ -43,7 +43,7 @@ export default function HomeScreen({ notes, onCreateNote, onEditNote, onDeleteNo
                 <ThemedText style={styles.noteTitle}>{note.title}</ThemedText>
                 <ThemedText style={styles.notePreview} numberOfLines={2}>{note.content}</ThemedText>
                 <ThemedText style={styles.noteDate}>
-                  {note.createdAt ? new Date(note.createdAt).toLocaleString() : ''}
+                  {note.createdAt ? new Date(note.createdAt).toLocaleString('vi-VN', { timeZone: 'Asia/Ho_Chi_Minh', hour12: true }) : ''}
                 </ThemedText>
               </TouchableOpacity>
               <TouchableOpacity onPress={() => onDeleteNote(note.id)} style={styles.deleteButton} activeOpacity={0.7}>
