@@ -13,7 +13,7 @@ import {
 
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
-import DateTimePicker from '@react-native-community/datetimepicker';
+import DateTimePicker, { DateTimePickerAndroid } from '@react-native-community/datetimepicker';
 import Constants, { ExecutionEnvironment } from 'expo-constants';
 
 import { API_BASE_URL } from '../../config/api';
@@ -30,8 +30,40 @@ export default function CreateNoteScreen({ userId, onBack }) {
 
   const API_URL = `${API_BASE_URL}/notes/create_note.php`;
 
-  const onChangeDate = (event, selectedDate) => {
-    setShowPicker(Platform.OS === 'ios');
+  const handleOpenPicker = () => {
+    const baseDate = reminderTime || new Date();
+    if (Platform.OS === 'android') {
+      DateTimePickerAndroid.open({
+        value: baseDate,
+        mode: 'date',
+        is24Hour: true,
+        minimumDate: new Date(),
+        onChange: (event, selectedDate) => {
+          if (event.type === 'set' && selectedDate) {
+            // Sau khi chọn ngày, mở tiếp hộp thoại chọn giờ
+            DateTimePickerAndroid.open({
+              value: selectedDate,
+              mode: 'time',
+              is24Hour: true,
+              onChange: (timeEvent, finalDate) => {
+                if (timeEvent.type === 'set' && finalDate) {
+                  if (finalDate < new Date()) {
+                    Alert.alert("Lỗi", "Vui lòng chọn thời gian trong tương lai!");
+                    return;
+                  }
+                  setReminderTime(finalDate);
+                }
+              }
+            });
+          }
+        }
+      });
+    } else {
+      setShowPicker(true);
+    }
+  };
+
+  const onChangeDateIOS = (event, selectedDate) => {
     if (selectedDate) {
       if (selectedDate < new Date()) {
         Alert.alert("Lỗi", "Vui lòng chọn thời gian trong tương lai!");
@@ -183,7 +215,7 @@ export default function CreateNoteScreen({ userId, onBack }) {
         <View style={styles.reminderRow}>
           <TouchableOpacity 
             style={styles.reminderButton} 
-            onPress={() => setShowPicker(true)}
+            onPress={handleOpenPicker}
           >
             <Text style={styles.reminderButtonText}>
               {reminderTime ? 'Đổi giờ nhắc nhở' : 'Chọn giờ nhắc nhở'}
@@ -206,12 +238,12 @@ export default function CreateNoteScreen({ userId, onBack }) {
           </Text>
         )}
 
-        {showPicker && (
+        {Platform.OS === 'ios' && showPicker && (
           <DateTimePicker
             value={reminderTime || new Date()}
             mode="datetime"
             display="default"
-            onChange={onChangeDate}
+            onChange={onChangeDateIOS}
             minimumDate={new Date()}
           />
         )}
